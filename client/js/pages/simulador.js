@@ -90,7 +90,7 @@ const State = {
   allocations: [],
   expandedSidebar: {},
   dayIdx: 0,
-  canEdit: false // Variável global de controle para essa tela
+  canEdit: false 
 };
 
 /* ==================== Utils ==================== */
@@ -252,10 +252,26 @@ function generateElimSkeleton(classCode, koCount, matchDuration) {
 
 /* ==================== Render principal ==================== */
 export async function renderSimulador(container) {
-  // 🔥 VERIFICA PERMISSÃO DE EDIÇÃO PARA O SIMULADOR (Bloqueia arrasto e botões se for falso)
   State.canEdit = canEditGlobal('simulador');
-
   State.allClasses = await api_getClasses();
+
+  // 🔥 MAGIA DO RETORNO DA IA: Verifica se tem dados recém-processados pela War Room
+  const returningDraft = sessionStorage.getItem('simulador_draft_data');
+  if (returningDraft) {
+      try {
+          const parsed = JSON.parse(returningDraft);
+          State.competition = parsed.competition || State.competition;
+          State.classPlans = parsed.classPlans || [];
+          State.schedulingClasses = parsed.schedulingClasses || [];
+          State.allocations = parsed.allocations || [];
+          if (parsed.matchesPool) State.matchesPool = new Map(parsed.matchesPool);
+          
+          sessionStorage.removeItem('simulador_draft_data');
+          setTimeout(() => toast('Grelha importada da War Room com sucesso!', 'success'), 500);
+      } catch(e) {
+          console.error("Erro ao ler dados da IA:", e);
+      }
+  }
 
   container.innerHTML = '';
 
@@ -308,7 +324,6 @@ function renderTopControls(container) {
   const inputStyle = 'padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; margin-top: 4px; font-size: 13px; height: 36px; box-sizing: border-box; background: white; color: #0f172a;';
   const labelStyle = 'display: flex; flex-direction: column; font-size: 12px; font-weight: bold; color: #475569; margin: 0;';
 
-  // Desabilita inputs se for View-Only
   const maybeDisabled = State.canEdit ? {} : { disabled: true };
 
   const inputFields = el('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '10px', flex: '1' } },
@@ -327,12 +342,42 @@ function renderTopControls(container) {
   const actionsWrapper = el('div', { class: 'toolbar-actions', style: { display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' } });
   
   if (State.canEdit) {
+      // 🔥 BOTÃO DA IA QUE LEVA PARA A WAR ROOM OFFLINE 🔥
+      actionsWrapper.append(
+          el('button', { 
+              type: 'button', 
+              title: 'Abrir War Room Offline',
+              style: btnStyleBase + ' background: #8b5cf6; color: white; border: 1px solid #7c3aed; box-shadow: 0 0 12px rgba(139, 92, 246, 0.4); text-transform: uppercase; letter-spacing: 0.5px;', 
+              onclick: () => {
+                  if (State.classPlans.length === 0) {
+                      return toast('Adicione pelo menos uma classe antes de ir para a War Room!', 'warn');
+                  }
+                  if (!State.competition.startDate || !State.competition.endDate) {
+                      return toast('Defina Início e Fim da competição antes de ir para a War Room!', 'warn');
+                  }
+                  
+                  // Salva o estado atual na memória temporária para a IA poder ler
+                  const payload = { 
+                      competition: State.competition, 
+                      allClasses: State.allClasses,
+                      classPlans: State.classPlans,
+                      schedulingClasses: State.schedulingClasses,
+                      matchesPool: Array.from(State.matchesPool.entries()), 
+                      allocations: State.allocations 
+                  };
+                  sessionStorage.setItem('simulador_draft_data', JSON.stringify(payload));
+                  
+                  // Navega para a nova rota
+                  window.location.hash = '#/simulador-ia';
+              } 
+          }, '🤖 Abrir War Room')
+      );
+
       actionsWrapper.append(
           el('button', { type: 'button', style: btnStyleBase + ' background: #2563eb; color: white; border: 1px solid #1d4ed8;', onclick: handleSaveScenario }, '💾 Salvar Simulação')
       );
   }
   
-  // Qualquer um pode carregar para ver. Excluir só se tiver permissão (controlado lá no modal de picker)
   actionsWrapper.append(
       el('button', { type: 'button', style: btnStyleBase + ' background: #e2e8f0; color: #0f172a; border: 1px solid #cbd5e1;', onclick: handleLoadScenario }, '📂 Carregar')
   );
@@ -504,7 +549,7 @@ function renderSidebarClasses() {
 
             content.append(el('div', {
                 class: 'sidebar-game-block',
-                draggable: State.canEdit, // 🔥 SE NÃO PUDER EDITAR, NÃO ARRASTA!
+                draggable: State.canEdit, 
                 ondragstart: (e) => { 
                     if (!State.canEdit) return;
                     e.dataTransfer.setData('application/json', JSON.stringify(m)); 
@@ -697,7 +742,6 @@ function drawAgendaGrid() {
     timeline.append(mark);
   }
 
-  // 🔥 SÓ HABILITA O DROP SE PUDER EDITAR
   if (State.canEdit) {
       courtsContainer.ondragover = (e) => {
           e.preventDefault();
@@ -796,7 +840,7 @@ function renderAgendaBlock(alloc) {
       display: 'flex',
       flexDirection: 'column',
       gap: '2px',
-      cursor: State.canEdit ? 'grab' : 'default', // 🔥 SÓ ARRASTA SE PUDER EDITAR
+      cursor: State.canEdit ? 'grab' : 'default', 
       userSelect: 'none',
       WebkitUserSelect: 'none',
       border: '1px solid rgba(0,0,0,0.1)',
@@ -963,7 +1007,6 @@ function openScenarioPicker(list) {
           overlay.remove();
           toast('Agenda #' + String(row.id).slice(0,5) + ' carregada com sucesso.', 'success');
         }}, 'Carregar'),
-        // 🔥 SÓ EXIBE BOTÃO EXCLUIR SE TIVER PERMISSÃO
         State.canEdit ? el('button', { class:'btn btn-small danger-btn', onclick: async ()=>{
           if (!confirm(`Excluir agenda #${String(row.id).slice(0,5)}? Esta ação não pode ser desfeita.`)) return;
           try { await api_deleteScenario(row.id); tr.remove(); toast('Agenda excluída.'); }
@@ -1285,7 +1328,6 @@ async function handleExportPDF() {
     console.error(err);
     toast('Erro ao processar o PDF. Verifique o console.', 'error');
   } finally {
-    // BLINDAGEM: Garante que os horários do ecrã voltem ao normal MESMO SE DER ERRO NO PDF
     State.competition.dayStart = originalDayStart;
     State.competition.dayEnd = originalDayEnd;
     State.dayIdx = originalDayIdx;

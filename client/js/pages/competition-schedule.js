@@ -48,7 +48,8 @@ export async function renderCompetitionSchedule(root, hashData) {
     lastSidebarScroll: 0,
     hasBuilderAccess: false,
     hasRefAccess: false,
-    hasLogbookAccess: false
+    hasLogbookAccess: false,
+    hasAIAccess: false
   };
 
   const API = {
@@ -417,22 +418,31 @@ export async function renderCompetitionSchedule(root, hashData) {
               const isHighRole = normalizedRoles.some(r => highRoles.includes(r));
               const isAnyOfficial = myOfficialRecord !== undefined;
 
-              if (isGlobalAdmin || isHighRole) {
-                  state.hasBuilderAccess = true;
-                  state.hasRefAccess = true;
-                  state.hasLogbookAccess = true;
-              } else if (isAnyOfficial) {
-                  state.hasRefAccess = true;
+ if (isGlobalAdmin || isHighRole) {
+                state.hasBuilderAccess = true;
+                state.hasRefAccess = true;
+                state.hasLogbookAccess = true;
+                state.hasAIAccess = true;
+            } else if (isAnyOfficial) {
+                state.hasRefAccess = true;
+            }
+const isTechDelegate = myOfficialRecord && myOfficialRecord.role
+                ? myOfficialRecord.role.toLowerCase().split(',')
+                    .map(r => r.normalize('NFD').replace(/[\u0300-\u036f]/g, "").trim())
+                    .includes('delegado tecnico')
+                : false;
+
+            if (isTechDelegate) {
+                state.hasAIAccess = true;
+            }
               }
-          }
-          
           state.timeSlots = (tsRes && tsRes.success ? tsRes.data : []).map(ts => ({
               ...ts, call_room_ids: typeof ts.call_room_ids === 'string' ? JSON.parse(ts.call_room_ids || '[]') : (ts.call_room_ids||[]), rest_ids: typeof ts.rest_ids === 'string' ? JSON.parse(ts.rest_ids || '[]') : (ts.rest_ids||[])
           }));
 
-          if (matchesRes.success) {
+           if (matchesRes.success) {
               state.allMatches = matchesRes.data;
-          } else { state.allMatches = []; }
+            } else { state.allMatches = []; }
 
           let minDate = comp.data_inicio || comp.start_date || new Date().toISOString().split('T')[0];
           let maxDate = comp.data_fim || comp.end_date || minDate;
@@ -472,12 +482,12 @@ export async function renderCompetitionSchedule(root, hashData) {
               state.hasUnsavedChanges = false;
           }
           
-          render();
+       render();
         } catch (e) {
           root.innerHTML = `<div class="alert alert-danger" style="margin:20px; padding:20px;">Erro de carregamento: ${e.message}</div>`;
         }
-    });
-  }
+    }); // fecha o onAuthStateChanged
+  } // fecha o loadData
 
   function render() {
     const headerTitle = state.hasBuilderAccess ? "Gestão de Agenda e Oficiais" : "Agenda Oficial de Jogos";
@@ -537,13 +547,13 @@ export async function renderCompetitionSchedule(root, hashData) {
         .scheduled-block:active { z-index: 15; opacity: 0.9; transform: scale(0.98); }
         .scheduled-block:hover { z-index: 12; }
         
-        body.is-dragging .scheduled-block { pointer-events: none !important; }
+        body.is-dragging .sidebar-matches .match-drag-item { pointer-events: none !important; }
 
         .sb-header { font-weight: bold; font-size: 11px; margin-bottom: 2px; display: flex; justify-content: space-between; }
         .sb-title { font-size: 11px; font-weight: bold; margin-bottom: 4px; padding-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.4); text-transform: uppercase; }
         .sb-players { display: flex; flex-direction: column; flex: 1; justify-content: center; align-items: center; gap: 2px; }
-        .sb-player-row { font-size: 10px; font-weight: 700; line-height: 1.1; word-wrap: break-word; white-space: normal; width: 100%; text-align: center; }
-        .sb-club { font-size: 8px; font-weight: normal; opacity: 0.9; text-transform: uppercase; display: block; margin-top: 1px; color: inherit; }
+        .sb-player-row { font-size: 10px; font-weight: 700; line-height: 1.2; word-wrap: break-word; white-space: normal; width: 100%; text-align: center; overflow-wrap: break-word; hyphens: auto; }
+.sb-club { font-size: 9px; font-weight: bold; opacity: 0.9; text-transform: uppercase; display: block; margin-top: 2px; color: inherit; word-wrap: break-word; white-space: normal; }
         .sb-vs { text-align: center; font-size: 10px; opacity: 0.8; font-weight: 900; margin: 2px 0; }
         
         .wb-table { width: 100%; border-collapse: collapse; font-size: 13px; border: 1px solid #cbd5e1; }
@@ -586,10 +596,10 @@ export async function renderCompetitionSchedule(root, hashData) {
         <div class="tabs-container">
             <button class="tab-btn ${state.currentTab === 'MAIN' ? 'active' : ''}" data-tab="MAIN">Visão Geral da Agenda</button>
       `;
-      if (state.hasBuilderAccess) {
-          tabsHtml += `<button class="tab-btn ${state.currentTab === 'BUILDER' ? 'active' : ''}" data-tab="BUILDER">Fazer Agenda (Drag & Drop)</button>
-                       <a href="#/competitions/auto-schedule?id=${competitionId}" class="tab-btn" style="background:#eff6ff; color:#2563eb; text-decoration:none;">🤖 Gerador Inteligente (IA)</a>`;
-      }
+      tabsHtml += `<button class="tab-btn ${state.currentTab === 'BUILDER' ? 'active' : ''}" data-tab="BUILDER">Fazer Agenda (Drag & Drop)</button>`;
+if (state.hasAIAccess) {
+    tabsHtml += `<a href="#/competitions/auto-schedule?id=${competitionId}" class="tab-btn" style="background:#eff6ff; color:#2563eb; text-decoration:none;">💡 Sugestão por IA</a>`;
+}
       if (state.hasRefAccess) {
           tabsHtml += `<button class="tab-btn ${state.currentTab === 'REFEREES' ? 'active' : ''}" data-tab="REFEREES">Escala de Arbitragem</button>`;
       }
@@ -621,16 +631,143 @@ export async function renderCompetitionSchedule(root, hashData) {
     }
     renderCurrentTab();
   }
-
-  function bindTabEvents() {
+   function bindTabEvents() {
     document.querySelectorAll('.tab-btn').forEach(btn => {
       if(!btn.dataset.tab) return;
       btn.onclick = (e) => {
         state.currentTab = e.target.dataset.tab;
-        render(); 
+        render();
       };
     });
   }
+function bindBuilderEvents(startM, displayStartM, pxPerMin, currentViewDate) {
+    document.querySelectorAll('.class-header').forEach(header => {
+        header.onclick = () => { state.expandedClasses[header.dataset.code] = !state.expandedClasses[header.dataset.code]; renderCurrentTab(); };
+    });
+
+    const updateConfig = () => {
+        const inpStart = document.getElementById('conf-start'); const inpEnd = document.getElementById('conf-end'); const inpHStart = document.getElementById('conf-h-start'); const inpHend = document.getElementById('conf-h-end'); const inpCourts = document.getElementById('conf-courts');
+        if(inpStart) state.config.startDate = inpStart.value; if(inpEnd) state.config.endDate = inpEnd.value; if(inpHStart) state.config.dayStart = inpHStart.value; if(inpHend) state.config.dayEnd = inpHend.value; if(inpCourts) state.config.courts = parseInt(inpCourts.value, 10);
+        saveConfigLocally(); 
+        calculateDays(); state.viewDateIndex = 0; renderCurrentTab();
+    };
+
+    ['conf-start', 'conf-end', 'conf-h-start', 'conf-h-end', 'conf-courts'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.addEventListener('change', updateConfig);
+    });
+
+    document.getElementById('btn-prev-day').addEventListener('click', () => { if (state.viewDateIndex > 0) { state.viewDateIndex--; renderCurrentTab(); } });
+    document.getElementById('btn-next-day').addEventListener('click', () => { if (state.viewDateIndex < state.availableDays.length - 1) { state.viewDateIndex++; renderCurrentTab(); } });
+
+    const btnReset = document.getElementById('btn-reset-schedule');
+    if (btnReset) {
+        btnReset.addEventListener('click', () => {
+            if (confirm("ATENÇÃO: Deseja limpar TODOS os jogos da agenda? (Eles voltarão para a lista lateral)")) {
+                state.draftSchedule = [];
+                saveDraftLocally();
+                renderCurrentTab();
+            }
+        });
+    }
+
+    const btnSave = document.getElementById('btn-save-official');
+    if (btnSave) {
+        btnSave.addEventListener('click', async () => {
+            if (!state.hasUnsavedChanges) return; 
+            btnSave.disabled = true; btnSave.textContent = "A Publicar...";
+            try {
+                await API.saveScheduleBatch(state.draftSchedule);
+                clearDraftLocally(); 
+                window.__toast?.("Agenda Oficial publicada com sucesso!", "success");
+                setTimeout(() => window.location.reload(true), 1000);
+            } catch (err) { alert("Erro ao gravar: " + err.message); btnSave.disabled = false; btnSave.textContent = "⚠️ Publicar Agenda Oficial"; } 
+        });
+    }
+
+    // ✅ CORREÇÃO: Event delegation no sidebar para dragstart
+    const dragSource = document.getElementById('drag-source');
+    if (dragSource) {
+        dragSource.addEventListener('dragstart', (e) => {
+            const item = e.target.closest('.match-drag-item');
+            if (!item) return;
+            e.dataTransfer.setData('match_id', item.dataset.id);
+            document.body.classList.add('is-dragging');
+            setTimeout(() => item.style.opacity = '0.4', 0);
+        });
+        dragSource.addEventListener('dragend', (e) => {
+            const item = e.target.closest('.match-drag-item');
+            if (item) item.style.opacity = '1';
+            document.body.classList.remove('is-dragging');
+            const ghost = document.getElementById('drag-ghost'); 
+            if(ghost) ghost.style.display = 'none'; 
+        });
+    }
+
+    const dropTarget = document.getElementById('drop-target');
+    if (!dropTarget) return;
+
+    // ✅ CORREÇÃO: Event delegation no dropTarget para blocos já agendados na grelha
+    dropTarget.addEventListener('dragstart', (e) => {
+        const item = e.target.closest('.scheduled-block');
+        if (!item) return;
+        e.dataTransfer.setData('match_id', item.dataset.id);
+        document.body.classList.add('is-dragging');
+        // Não esconde o bloco imediatamente para não causar glitch visual
+        setTimeout(() => { if(item) item.style.opacity = '0.4'; }, 0);
+    });
+
+    dropTarget.addEventListener('dragend', (e) => {
+        const item = e.target.closest('.scheduled-block');
+        if (item) item.style.opacity = '1';
+        document.body.classList.remove('is-dragging');
+        const ghost = document.getElementById('drag-ghost'); 
+        if(ghost) ghost.style.display = 'none'; 
+    });
+
+    dropTarget.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        const ghost = document.getElementById('drag-ghost');
+        if(!ghost) return;
+        const rect = dropTarget.getBoundingClientRect();
+        const x = e.clientX - rect.left; const y = e.clientY - rect.top;
+        const courtWidth = rect.width / state.config.courts;
+        const courtIndex = Math.floor(x / courtWidth);
+        let dropTimeMin = (y / pxPerMin) + displayStartM;
+        if (dropTimeMin < startM) dropTimeMin = startM; 
+        dropTimeMin = Math.round(dropTimeMin / 5) * 5; 
+
+        ghost.style.display = 'block';
+        ghost.style.top = `${(dropTimeMin - displayStartM) * pxPerMin}px`;
+        ghost.style.left = `calc(${(courtIndex / state.config.courts) * 100}% + 8px)`; 
+        ghost.style.width = `calc(${(1 / state.config.courts) * 100}% - 16px)`;
+        ghost.style.height = `${Math.max(50 * pxPerMin, 70)}px`; 
+    });
+
+    dropTarget.addEventListener('drop', (e) => {
+        e.preventDefault();
+        document.getElementById('drag-ghost').style.display = 'none';
+        const matchId = e.dataTransfer.getData('match_id');
+        if (!matchId || !currentViewDate) return;
+
+        const rect = dropTarget.getBoundingClientRect();
+        const x = e.clientX - rect.left; const y = e.clientY - rect.top;
+        const courtWidth = rect.width / state.config.courts;
+        const courtId = Math.floor(x / courtWidth) + 1;
+
+        let dropTimeMin = (y / pxPerMin) + displayStartM;
+        dropTimeMin = Math.round(dropTimeMin / 5) * 5; 
+        if (dropTimeMin < startM) dropTimeMin = startM;
+
+        state.lastGridScroll = document.getElementById('grid-scroll-area')?.scrollTop || 0;
+        state.lastSidebarScroll = document.getElementById('drag-source')?.scrollTop || 0;
+
+        state.draftSchedule = state.draftSchedule.filter(d => String(d.matchId) !== String(matchId));
+        state.draftSchedule.push({ matchId: String(matchId), court: courtId, match_date: currentViewDate, start_time: minToHhmm(dropTimeMin) });
+
+        saveDraftLocally(); 
+        renderCurrentTab();
+    });
+}
 
   function renderCurrentTab() {
     const content = document.getElementById('tab-content');
@@ -842,15 +979,17 @@ export async function renderCompetitionSchedule(root, hashData) {
         block.style.top = `${topPx}px`; block.style.left = `calc(${leftPercent}% + 8px)`; block.style.width = `calc(${widthPercent}% - 16px)`; block.style.height = `${Math.max(durPx, 70)}px`;
         block.style.backgroundColor = classData.bg; block.style.color = classData.fg;
         
-        block.innerHTML = `
-            <div class="sb-header"><span>${d.start_time} - ${minToHhmm(mStart + durMin)}</span><span>${escapeHTML(m.class_code)}</span></div>
-            <div class="sb-title">${escapeHTML(titleStr)}</div>
-            <div class="sb-players">
-               <div class="sb-player-row">${p1Data.display}<br><span class="sb-club">${p1Data.club}</span></div>
-               <div class="sb-vs">VS</div>
-               <div class="sb-player-row">${p2Data.display}<br><span class="sb-club">${p2Data.club}</span></div>
-            </div>
-        `;
+       block.style.overflow = 'auto';
+block.style.height = `${Math.max(durPx, 90)}px`;
+block.innerHTML = `
+    <div class="sb-header"><span>${d.start_time} - ${minToHhmm(mStart + durMin)}</span><span>${escapeHTML(m.class_code)}</span></div>
+    <div class="sb-title">${escapeHTML(titleStr)}</div>
+    <div class="sb-players">
+       <div class="sb-player-row" style="white-space:normal; word-break:break-word; overflow-wrap:break-word;">${p1Data.display}<br><span class="sb-club" style="white-space:normal; word-break:break-word;">${p1Data.club}</span></div>
+       <div class="sb-vs">VS</div>
+       <div class="sb-player-row" style="white-space:normal; word-break:break-word; overflow-wrap:break-word;">${p2Data.display}<br><span class="sb-club" style="white-space:normal; word-break:break-word;">${p2Data.club}</span></div>
+    </div>
+`;
         block.ondblclick = () => { 
             state.lastGridScroll = document.getElementById('grid-scroll-area')?.scrollTop || 0;
             state.lastSidebarScroll = document.getElementById('drag-source')?.scrollTop || 0;
@@ -1091,13 +1230,13 @@ export async function renderCompetitionSchedule(root, hashData) {
                     `;
                 } else {
                     refInfoHtml = `
-                        <div style="margin-top:auto; padding-top:2px; border-top:1px dashed rgba(255,255,255,0.6); text-align:left; font-size:10px; font-weight:bold; background:rgba(255,255,255,0.15); border-radius:4px; padding-left:4px; padding-bottom:2px; line-height: 1.1;">
-                            <div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Árb: ${refA}</div>
-                            ${refS && refS !== '-' ? `<div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#fef08a;">Aval: ${refS}</div>` : ''}
-                            <div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Lin: ${getRefName(m.referee_linha_id)}</div>
-                            <div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Mes: ${getRefName(m.referee_mesa_id)}</div>
-                        </div>
-                    `;
+                         <div style="margin-top:auto; padding-top:2px; border-top:1px dashed rgba(255,255,255,0.6); text-align:left; font-size:10px; font-weight:bold; background:rgba(255,255,255,0.15); border-radius:4px; padding:2px 4px; line-height: 1.3;">
+            <div style="white-space:normal; word-break:break-word; overflow-wrap:break-word;">Árb: ${refA}</div>
+            ${refS && refS !== '-' ? `<div style="white-space:normal; word-break:break-word; overflow-wrap:break-word; color:#fef08a;">Aval: ${refS}</div>` : ''}
+            <div style="white-space:normal; word-break:break-word; overflow-wrap:break-word;">Lin: ${getRefName(m.referee_linha_id)}</div>
+            <div style="white-space:normal; word-break:break-word; overflow-wrap:break-word;">Mes: ${getRefName(m.referee_mesa_id)}</div>
+        </div>
+    `;
                 }
 
                 blocksHtml += `
@@ -1106,11 +1245,11 @@ export async function renderCompetitionSchedule(root, hashData) {
                             <div class="m-info">${m.start_time} • ${escapeHTML(m.class_code)} • J${mNumStr}</div>
                             <div style="font-weight:bold; font-size:9px; background:rgba(0,0,0,0.2); margin-bottom:2px; padding:1px; border-radius:2px;">${escapeHTML(titleStr)}</div>
                             <div class="m-players">
-                                <div class="player-name">${p1Data.display}</div>
-                                <div class="club-sigla">${p1Data.club}</div>
+                                <div class="player-name" style="white-space:normal; word-break:break-word; overflow-wrap:break-word;">${p1Data.display}</div>
+<div class="club-sigla" style="white-space:normal; word-break:break-word;">${p1Data.club}</div>
                                 <div style="font-size:8px; font-weight:bold; opacity:0.8; margin:1px 0;">VS</div>
-                                <div class="player-name">${p2Data.display}</div>
-                                <div class="club-sigla">${p2Data.club}</div>
+                                <div class="player-name" style="white-space:normal; word-break:break-word; overflow-wrap:break-word;">${p2Data.display}</div>
+<div class="club-sigla" style="white-space:normal; word-break:break-word;">${p2Data.club}</div>
                             </div>
                             ${refInfoHtml}
                         </div>

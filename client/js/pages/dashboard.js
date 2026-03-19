@@ -2,7 +2,6 @@
 
 import { db } from '../firebase-config.js';
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
-// 🔥 Adicionado: collection, query, where, onSnapshot para a notificação em tempo real!
 import { doc, getDoc, collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 import { canViewPage } from '../permissions.js';
 
@@ -18,13 +17,10 @@ const icons = {
   resultados: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>`,
   status: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>`,
   admin: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M8 11l3 3 5-5"/></svg>`,
-  
-  // 🔥 Ícones Novos para o Módulo de Dispensa
   dispensaUser: `<svg viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>`,
   dispensaAdmin: `<svg viewBox="0 0 24 24" fill="none" stroke="#eab308" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>`
 };
 
-// 🔥 Função Card atualizada para suportar uma Badge (bolinha de notificação)
 function card(href, icon, title, sub, disabled=false, badgeId=null) {
   const attr = disabled ? 'aria-disabled="true" tabindex="-1"' : `data-nav="${href}" tabindex="0" role="link"`;
   const badgeHtml = badgeId ? `<div id="${badgeId}" style="position:absolute; top:-12px; right:-12px; z-index:10;"></div>` : '';
@@ -135,14 +131,14 @@ export async function renderDashboard(root) {
       `;
     }
 
-    // 4. ADMINISTRAÇÃO (+ Gerenciar Dispensas)
+    // 4. ADMINISTRAÇÃO (+ Gerenciar Dispensas + LOGS)
     if (canViewPage('gestao') || canViewPage('admin_dispensas')) {
       html += `
         <div class="row">
           <h2>Administração do Sistema</h2>
           <div class="cards">
             ${canViewPage('gestao') ? card('#/admin/users', icons.admin, 'Gestão de Acessos', 'Aprovar Oficiais e definir funções') : ''}
-            
+            ${canViewPage('gestao') ? card('#/system-logs', icons.admin, 'Logs do Sistema', 'Auditoria e Rastreio (TXT)') : ''}
             ${canViewPage('admin_dispensas') ? card('#/admin/dispensas', icons.dispensaAdmin, 'Gerenciar Dispensas', 'Aprovar e emitir PDFs', false, 'dash-badge-dispensas') : ''}
           </div>
         </div>

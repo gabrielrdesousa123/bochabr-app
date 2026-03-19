@@ -8,6 +8,7 @@ const routes = {
   '#/home':         () => import('./pages/home.js').then(m => m.renderHome),
   '#/dashboard':    () => import('./pages/dashboard.js').then(m => m.renderDashboard),
   '#/admin/users':  () => import('./pages/admin-users.js').then(m => m.renderAdminUsers),
+  '#/system-logs':  () => import('./pages/system-logs.js').then(m => m.renderSystemLogs), // 🔥 ROTA DOS LOGS ADICIONADA
   
   '#/clubes':       () => import('./pages/clubes.js').then(m => m.renderClubes),
   '#/classes':      () => import('./pages/classes.js').then(m => m.renderClasses),
@@ -20,7 +21,8 @@ const routes = {
   '#/csv':        () => import('./pages/csv.js').then(m => m.renderCsvHub),
   '#/resultados': () => import('./pages/resultados.js').then(m => m.renderResultados),
   '#/status':     () => import('./pages/status.js').then(m => m.renderStatus),
-
+  '#/simulador-ia': () => import('./pages/simulador-ia.js').then(m => m.renderSimuladorIA),
+  
   // 🔥 MÓDULO DE DISPENSAS
   '#/solicitar-dispensa': () => import('./pages/solicitar-dispensa.js').then(m => m.renderSolicitarDispensa),
   '#/admin/dispensas':    () => import('./pages/admin-dispensas.js').then(m => m.renderAdminDispensas),
@@ -42,7 +44,7 @@ const routes = {
   '#/competitions/athletes':        () => import('./pages/competition-athletes.js').then(m => m.renderCompetitionAthletes),
   '#/competitions/officials':       () => import('./pages/competition-officials.js').then(m => m.renderCompetitionOfficials),
   '#/competitions/schedule':        () => import('./pages/competition-schedule.js').then(m => m.renderCompetitionSchedule),
-  '#/competitions/auto-schedule':   () => import('./pages/competition-auto-schedule.js').then(m => m.renderCompetitionAutoSchedule), // 🔥 Simulador de Agenda (IA Isolada)
+  '#/competitions/auto-schedule':   () => import('./pages/competition-auto-schedule.js').then(m => m.renderCompetitionAutoSchedule), 
   '#/competitions/match-sheets':    () => import('./pages/competition-match-sheets.js').then(m => m.renderCompetitionMatchSheets),
   '#/competitions/violations':      () => import('./pages/competition-violations.js').then(m => m.renderCompetitionViolations),
   '#/competitions/partial-results': () => import('./pages/competition-partial-results.js').then(m => m.renderCompetitionPartialResults),
@@ -53,9 +55,8 @@ const routes = {
 
   '#/oper-login':                   () => import('./pages/oper-login.js').then(m => m.renderOperLogin),
   '#/competitions/access':          () => import('./pages/competition-access.js').then(m => m.renderCompetitionAccess),
+  
   // 🔥 MÓDULO DE DISPENSAS
-  '#/solicitar-dispensa': () => import('./pages/solicitar-dispensa.js').then(m => m.renderSolicitarDispensa),
-  '#/admin/dispensas':    () => import('./pages/admin-dispensas.js').then(m => m.renderAdminDispensas),
   '#/dispensa-publica':   () => import('./pages/dispensa-publica.js').then(m => m.renderDispensaPublica), 
 };
 
@@ -67,14 +68,16 @@ const routePermissions = {
   '#/teams': 'atletas',
   '#/oficiais': 'oficiais',
   '#/simulador': 'simulador',
+  '#/simulador-ia': 'simulador', 
   '#/csv': 'csv',
   '#/resultados': 'resultados',
   '#/status': 'status',
   '#/admin/users': 'gestao',
+  '#/system-logs': 'gestao', // 🔥 ACESSO RESTRITO AOS LOGS
   '#/competitions/load': 'competicoes',
   '#/competitions/view': 'competicoes',
   '#/competitions/new': 'competicoes',
-  '#/competitions/auto-schedule': 'competicoes', // Permissão do Simulador Isolado
+  '#/competitions/auto-schedule': 'competicoes', 
   '#/solicitar-dispensa': 'solicitar_dispensa', 
   '#/admin/dispensas': 'admin_dispensas'        
 };
@@ -185,6 +188,11 @@ export async function navigate(hash) {
 
     if (routeLoader) {
       const renderFn = await routeLoader();
+      
+      if (typeof renderFn !== 'function') {
+          throw new Error(`A rota '${path}' não retornou uma função de renderização válida. Verifique o ficheiro correspondente.`);
+      }
+
       const params = new URLSearchParams(query || '');
 
       const compRoutes = [
