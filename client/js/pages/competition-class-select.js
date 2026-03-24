@@ -58,6 +58,8 @@ export async function renderCompetitionClassSelect(root, { competitionId, classC
     if (key === 'c1') return a.c1;
     if (key === 'c2') return a.c2;
     if (key === 'c3') return a.c3;
+    if (key === 'c4') return a.c4; 
+    if (key === 'c5') return a.c5; 
     if (key === 'nome') return a.nome;
     if (key === 'clube_nome') return a.clube_nome;
     if (key === 'regiao') return a.regiao;
@@ -65,13 +67,41 @@ export async function renderCompetitionClassSelect(root, { competitionId, classC
     return a[key];
   }
 
+  // 🔥 NOVO MOTOR DE ORDENAÇÃO RIGOROSA 🔥
+  // Força os números mais baixos para o topo (C1 -> C5) e joga os vazios/nulos para o fim
+  function rigorousSort(list) {
+      const getVal = (v) => {
+          if (v === null || v === undefined || String(v).trim() === '' || String(v).trim() === '—') return 999999;
+          const n = Number(v);
+          return isNaN(n) ? 999999 : n;
+      };
+
+      list.sort((a, b) => {
+          if (getVal(a.c1) !== getVal(b.c1)) return getVal(a.c1) - getVal(b.c1);
+          if (getVal(a.c2) !== getVal(b.c2)) return getVal(a.c2) - getVal(b.c2);
+          if (getVal(a.c3) !== getVal(b.c3)) return getVal(a.c3) - getVal(b.c3);
+          if (getVal(a.c4) !== getVal(b.c4)) return getVal(a.c4) - getVal(b.c4);
+          if (getVal(a.c5) !== getVal(b.c5)) return getVal(a.c5) - getVal(b.c5);
+          return String(a.nome || '').localeCompare(String(b.nome || ''));
+      });
+      return list;
+  }
+
   function sortedAthletes(list, key, dir) {
     const mul = dir === 'asc' ? 1 : -1;
     const arr = [...(list || [])];
+    
+    // Se a chave de ordenação for 'pos' ou um dos critérios, aplica a ordenação rigorosa
+    if (['pos', 'c1', 'c2', 'c3', 'c4', 'c5'].includes(key)) {
+        rigorousSort(arr);
+        if (dir === 'desc') arr.reverse();
+        return arr;
+    }
+
     arr.sort((a, b) => {
       const va = getField(a, key);
       const vb = getField(b, key);
-      if (['pos', 'c1', 'c2', 'c3', 'id'].includes(key)) {
+      if (key === 'id') {
         const na = toNum(va), nb = toNum(vb);
         if (na == null && nb == null) return 0;
         if (na == null) return 1;
@@ -121,6 +151,8 @@ export async function renderCompetitionClassSelect(root, { competitionId, classC
     if (item.c1 != null) return `C1-${String(item.c1).padStart(2, '0')}`;
     if (item.c2 != null) return `C2-${String(item.c2).padStart(2, '0')}`;
     if (item.c3 != null) return `C3-${String(item.c3).padStart(2, '0')}`;
+    if (item.c4 != null) return `C4-${String(item.c4).padStart(2, '0')}`; 
+    if (item.c5 != null) return `C5-${String(item.c5).padStart(2, '0')}`; 
     return 'S/R';
   }
 
@@ -173,15 +205,19 @@ export async function renderCompetitionClassSelect(root, { competitionId, classC
     } catch(e) {}
   }
 
+  // 🔥 AQUI ESTÁ A CORREÇÃO PRINCIPAL 🔥
   function fixBibsAutomatically() {
-    modalState.athletesForDraw.sort((a, b) => a.pos - b.pos);
+    // 1. Obriga a lista a ordenar-se rigorosamente pelos critérios (08 primeiro, 10 depois, 15 depois...)
+    rigorousSort(modalState.athletesForDraw);
+    
+    // 2. Só depois de ordenados é que distribui os BIBs sequenciais e guarda a 'pos'
     modalState.athletesForDraw.forEach((a, idx) => {
+      a.pos = idx + 1; // Atualiza a posição interna para a visualização
       if (!a.manualBib) a.bib = generateBib(a, idx + 1);
     });
   }
 
   const API = {
-    // 🔥 REGRA DE OURO APLICADA: Filtra Arquivados e Ordena por Data
     fetchCompetitionsDropdown: async () => {
       try {
         const snap = await getDocs(collection(db, "competitions"));
@@ -190,20 +226,11 @@ export async function renderCompetitionClassSelect(root, { competitionId, classC
             return { 
                 id: d.id || doc.id, 
                 nome: d.name || d.nome,
-                is_archived: d.is_archived,
-                historica_csv: d.historica_csv,
                 data_inicio: d.data_inicio || d.start_date || '',
                 created_at: d.created_at || ''
             };
         });
 
-        // 1. Esconde Arquivadas e Testes
-        comps = comps.filter(c => 
-            c.is_archived !== true && String(c.is_archived) !== "true" &&
-            c.historica_csv !== true && String(c.historica_csv) !== "true"
-        );
-
-        // 2. Ordena pelas mais recentes no topo (Data de Início)
         comps.sort((a, b) => {
             const dateA = new Date(a.data_inicio || a.created_at || 0).getTime();
             const dateB = new Date(b.data_inicio || b.created_at || 0).getTime();
@@ -214,7 +241,7 @@ export async function renderCompetitionClassSelect(root, { competitionId, classC
       } catch (e) { return []; }
     },
     
-    fetchAthletesPreview: async (classCode, crit1, crit2, crit3) => {
+    fetchAthletesPreview: async (classCode, c1, c2, c3, c4, c5) => { 
       try {
         const classSnap = await getDocs(collection(db, "classes"));
         let targetGenders = null;
@@ -270,9 +297,11 @@ export async function renderCompetitionClassSelect(root, { competitionId, classC
         };
 
         await Promise.all([
-          fetchHistorico(crit1, 'c1'),
-          fetchHistorico(crit2, 'c2'),
-          fetchHistorico(crit3, 'c3')
+          fetchHistorico(c1, 'c1'),
+          fetchHistorico(c2, 'c2'),
+          fetchHistorico(c3, 'c3'),
+          fetchHistorico(c4, 'c4'),
+          fetchHistorico(c5, 'c5')
         ]);
 
         let listData = [];
@@ -317,6 +346,8 @@ export async function renderCompetitionClassSelect(root, { competitionId, classC
                     c1: ranks.c1 || null,
                     c2: ranks.c2 || null,
                     c3: ranks.c3 || null,
+                    c4: ranks.c4 || null,
+                    c5: ranks.c5 || null,
                     pos: 0,
                     team_athletes_names: athNames
                  });
@@ -367,19 +398,17 @@ export async function renderCompetitionClassSelect(root, { competitionId, classC
                      c1: ranks.c1 || null,
                      c2: ranks.c2 || null,
                      c3: ranks.c3 || null,
+                     c4: ranks.c4 || null,
+                     c5: ranks.c5 || null,
                      pos: 0
                  });
              });
         }
 
-        listData.sort((a, b) => {
-          if ((a.c1 || 999) !== (b.c1 || 999)) return (a.c1 || 999) - (b.c1 || 999);
-          if ((a.c2 || 999) !== (b.c2 || 999)) return (a.c2 || 999) - (b.c2 || 999);
-          if ((a.c3 || 999) !== (b.c3 || 999)) return (a.c3 || 999) - (b.c3 || 999);
-          return a.nome.localeCompare(b.nome);
-        });
-        
+        // Aplica a ordenação rigorosa na tabela do lado esquerdo também!
+        rigorousSort(listData);
         return listData.map((a, idx) => ({ ...a, pos: idx + 1 }));
+
       } catch (e) { 
         throw new Error("Falha ao cruzar dados no Firebase: " + e.message); 
       }
@@ -434,7 +463,7 @@ export async function renderCompetitionClassSelect(root, { competitionId, classC
         </td>
         <td class="text-center">${escapeHTML(a.regiao)}</td>
         <td class="text-center" style="padding: 10px 20px; font-weight: 500;">
-          ${a.c1??'-'} / ${a.c2??'-'} / ${a.c3??'-'}
+          ${a.c1??'-'} / ${a.c2??'-'} / ${a.c3??'-'} / ${a.c4??'-'} / ${a.c5??'-'}
         </td>
         <td class="text-center">
           <button class="btn btn-primary btn-sm add-btn" data-id="${a.firebase_id}">Adicionar</button>
@@ -461,7 +490,8 @@ export async function renderCompetitionClassSelect(root, { competitionId, classC
       return;
     }
 
-    const sortedDraw = [...modalState.athletesForDraw].sort((a, b) => a.pos - b.pos);
+    // Usamos o RigorousSort novamente aqui só para garantir que a interface está 100% alinhada
+    const sortedDraw = rigorousSort([...modalState.athletesForDraw]);
 
     tbody.innerHTML = sortedDraw.map((a, idx) => `
       <tr>
@@ -473,7 +503,7 @@ export async function renderCompetitionClassSelect(root, { competitionId, classC
                  placeholder="BIB">
         </td>
         <td>
-            <div style="font-weight:bold;">${escapeHTML(a.nome)} ${!modalState.isTeamEvent ? `<small style="color: #64748b; font-weight:normal;">(${escapeHTML(a.classe_code)})</small>` : ''}</div>
+            <div style="font-weight:bold;">${escapeHTML(a.nome)} <small style="color: #64748b; font-weight:normal;">(${escapeHTML(a.sigla || a.clube_sigla || a.clube_nome)})</small></div>
             ${modalState.isTeamEvent && a.team_athletes_names ? `<div style="font-size:10px; color:#64748b; margin-top:2px;">👥 ${escapeHTML(a.team_athletes_names)}</div>` : ''}
         </td>
         <td class="text-center"><small>${getRankJustification(a)}</small></td>
@@ -489,15 +519,17 @@ export async function renderCompetitionClassSelect(root, { competitionId, classC
       const c1 = qs('#bcms-crit1')?.value || '';
       const c2 = qs('#bcms-crit2')?.value || '';
       const c3 = qs('#bcms-crit3')?.value || '';
+      const c4 = qs('#bcms-crit4')?.value || ''; 
+      const c5 = qs('#bcms-crit5')?.value || ''; 
       
       const btn = qs('#bcms-crit1'); 
       if (btn) btn.disabled = true; 
       
-      modalState.athletes = await API.fetchAthletesPreview(modalState.classCode, c1, c2, c3);
+      modalState.athletes = await API.fetchAthletesPreview(modalState.classCode, c1, c2, c3, c4, c5);
       
       modalState.athletesForDraw.forEach(ad => {
           const updated = modalState.athletes.find(a => a.firebase_id === ad.firebase_id);
-          if (updated) { ad.c1 = updated.c1; ad.c2 = updated.c2; ad.c3 = updated.c3; ad.pos = updated.pos; }
+          if (updated) { ad.c1 = updated.c1; ad.c2 = updated.c2; ad.c3 = updated.c3; ad.c4 = updated.c4; ad.c5 = updated.c5; ad.pos = updated.pos; }
       });
 
       renderAthleteTable();
@@ -589,7 +621,7 @@ export async function renderCompetitionClassSelect(root, { competitionId, classC
       fixBibsAutomatically();
       saveState();
       renderDrawList();
-      toastSafe('Todos os BIBs foram recalculados de acordo com o Ranking!', 'success');
+      toastSafe('Todos os BIBs foram recalculados rigorosamente pelo Ranking!', 'success');
     });
 
     qs('#btn-realizar-sorteio').addEventListener('click', async () => {
@@ -607,7 +639,6 @@ export async function renderCompetitionClassSelect(root, { competitionId, classC
       location.hash = `#/competitions/draw?id=${encodeURIComponent(modalState.competitionId)}&class=${encodeURIComponent(modalState.classCode)}`;
     });
 
-    // 🔥 EVENTOS DO MODAL DE IMPORTAÇÃO
     qs('#btn-open-import')?.addEventListener('click', async () => {
       const modal = qs('#modal-import-class');
       const sel = qs('#import-comp-select');
@@ -730,21 +761,29 @@ export async function renderCompetitionClassSelect(root, { competitionId, classC
     
     root.innerHTML = `
       <div style="padding: 20px; font-family: sans-serif;">
-        <div style="display: flex; justify-content: space-between; align-items: center; gap: 20px; margin-bottom: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 20px; margin-bottom: 20px; flex-wrap: wrap;">
           <h3 style="margin: 0; white-space: nowrap;">Sorteio: Classe ${escapeHTML(modalState.classCode)}</h3>
           
-          <div style="display: flex; align-items: flex-end; gap: 15px; flex-grow: 1; justify-content: flex-end;">
-            <div style="min-width: 150px;">
-              <label class="form-label mb-1 small" style="display: block;">Critério Histórico 1 (Maior Peso)</label>
+          <div style="display: flex; align-items: flex-end; gap: 10px; flex-grow: 1; justify-content: flex-end; flex-wrap: wrap;">
+            <div style="min-width: 130px; max-width: 180px;">
+              <label class="form-label mb-1 small" style="display: block; font-size: 11px;">Critério 1 (Maior Peso)</label>
               <select id="bcms-crit1" class="form-select form-select-sm c-select" style="width: 100%;"></select>
             </div>
-            <div style="min-width: 150px;">
-              <label class="form-label mb-1 small" style="display: block;">Critério Histórico 2</label>
+            <div style="min-width: 130px; max-width: 180px;">
+              <label class="form-label mb-1 small" style="display: block; font-size: 11px;">Critério 2</label>
               <select id="bcms-crit2" class="form-select form-select-sm c-select" style="width: 100%;"></select>
             </div>
-            <div style="min-width: 150px;">
-              <label class="form-label mb-1 small" style="display: block;">Critério Histórico 3</label>
+            <div style="min-width: 130px; max-width: 180px;">
+              <label class="form-label mb-1 small" style="display: block; font-size: 11px;">Critério 3</label>
               <select id="bcms-crit3" class="form-select form-select-sm c-select" style="width: 100%;"></select>
+            </div>
+            <div style="min-width: 130px; max-width: 180px;">
+              <label class="form-label mb-1 small" style="display: block; font-size: 11px;">Critério 4</label>
+              <select id="bcms-crit4" class="form-select form-select-sm c-select" style="width: 100%;"></select>
+            </div>
+            <div style="min-width: 130px; max-width: 180px;">
+              <label class="form-label mb-1 small" style="display: block; font-size: 11px;">Critério 5</label>
+              <select id="bcms-crit5" class="form-select form-select-sm c-select" style="width: 100%;"></select>
             </div>
           </div>
         </div>
@@ -760,10 +799,10 @@ export async function renderCompetitionClassSelect(root, { competitionId, classC
               <table class="table table-hover table-sm align-middle mb-0">
                 <thead class="table-dark">
                   <tr>
-                    <th class="text-center" data-sort="pos">Rank Oficial ↕</th>
+                    <th class="text-center" data-sort="pos">Rank ↕</th>
                     <th data-sort="nome" id="th-nome">${listTitle}</th>
                     <th class="text-center" data-sort="regiao">Região ↕</th>
-                    <th class="text-center" style="min-width: 120px;">C1 / C2 / C3</th>
+                    <th class="text-center" style="min-width: 160px; font-size:11px;">C1 / C2 / C3 / C4 / C5</th>
                     <th class="text-center">Ação</th>
                   </tr>
                 </thead>
@@ -783,7 +822,7 @@ export async function renderCompetitionClassSelect(root, { competitionId, classC
                   <tr>
                     <th class="text-center">BIB</th>
                     <th>Nome</th>
-                    <th class="text-center">Critério de Rank</th>
+                    <th class="text-center">Histórico</th>
                     <th class="text-center"></th>
                   </tr>
                 </thead>

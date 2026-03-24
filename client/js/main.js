@@ -8,7 +8,8 @@ const routes = {
   '#/home':         () => import('./pages/home.js').then(m => m.renderHome),
   '#/dashboard':    () => import('./pages/dashboard.js').then(m => m.renderDashboard),
   '#/admin/users':  () => import('./pages/admin-users.js').then(m => m.renderAdminUsers),
-  '#/system-logs':  () => import('./pages/system-logs.js').then(m => m.renderSystemLogs), // 🔥 ROTA DOS LOGS ADICIONADA
+  '#/system-logs':  () => import('./pages/system-logs.js').then(m => m.renderSystemLogs), 
+  '#/bcms-test':    () => import('./pages/bcms-test.js').then(m => m.renderBcmsTest),
   
   '#/clubes':       () => import('./pages/clubes.js').then(m => m.renderClubes),
   '#/classes':      () => import('./pages/classes.js').then(m => m.renderClasses),
@@ -23,7 +24,7 @@ const routes = {
   '#/status':     () => import('./pages/status.js').then(m => m.renderStatus),
   '#/simulador-ia': () => import('./pages/simulador-ia.js').then(m => m.renderSimuladorIA),
   
-  // 🔥 MÓDULO DE DISPENSAS
+  // MÓDULO DE DISPENSAS
   '#/solicitar-dispensa': () => import('./pages/solicitar-dispensa.js').then(m => m.renderSolicitarDispensa),
   '#/admin/dispensas':    () => import('./pages/admin-dispensas.js').then(m => m.renderAdminDispensas),
 
@@ -56,11 +57,13 @@ const routes = {
   '#/oper-login':                   () => import('./pages/oper-login.js').then(m => m.renderOperLogin),
   '#/competitions/access':          () => import('./pages/competition-access.js').then(m => m.renderCompetitionAccess),
   
-  // 🔥 MÓDULO DE DISPENSAS
   '#/dispensa-publica':   () => import('./pages/dispensa-publica.js').then(m => m.renderDispensaPublica), 
+
+  // 🔥 NOVA ROTA PÚBLICA PARA O AVALIADOR SOMBRA 🔥
+  '#/avaliacao-externa': () => import('./pages/avaliacao-externa.js').then(m => m.renderAvaliacaoExterna)
 };
 
-// 🔥 DICIONÁRIO DE ROTAS SEGURAS (ATUALIZADO)
+// DICIONÁRIO DE ROTAS SEGURAS
 const routePermissions = {
   '#/clubes': 'clubes',
   '#/classes': 'classes',
@@ -73,7 +76,8 @@ const routePermissions = {
   '#/resultados': 'resultados',
   '#/status': 'status',
   '#/admin/users': 'gestao',
-  '#/system-logs': 'gestao', // 🔥 ACESSO RESTRITO AOS LOGS
+  '#/system-logs': 'gestao', 
+  '#/bcms-test': 'gestao', 
   '#/competitions/load': 'competicoes',
   '#/competitions/view': 'competicoes',
   '#/competitions/new': 'competicoes',
@@ -154,8 +158,9 @@ export async function navigate(hash) {
 
   const [path, query] = hash.split('?');
 
+  // Verifica permissões normais, mas NÃO bloqueia a rota de avaliação externa
   const requiredPermission = routePermissions[path];
-  if (requiredPermission && !canViewPage(requiredPermission)) {
+  if (requiredPermission && path !== '#/avaliacao-externa' && !canViewPage(requiredPermission)) {
       window.__toast?.('Acesso Negado. O seu nível de utilizador não permite visualizar esta página.', 'error', 3000);
       location.hash = '#/home';
       return; 
@@ -166,6 +171,14 @@ export async function navigate(hash) {
     const drawViewMatch = hash.match(/#\/competitions\/([a-zA-Z0-9_-]+)\/class\/([^/]+)\/draw-view/) || hash.match(/#\/competitions\/(\d+)\/class\/([^/]+)\/draw-view/);
     const competitionViewMatch = hash.match(/#\/competitions\/([a-zA-Z0-9_-]+)\/class\/([^/]+)\/competition-view/) || hash.match(/#\/competitions\/(\d+)\/class\/([^/]+)\/competition-view/);
     const resultsMatch = hash.match(/#\/competitions\/([a-zA-Z0-9_-]+)\/class\/([^/]+)\/results/) || hash.match(/#\/competitions\/(\d+)\/class\/([^/]+)\/results/);
+
+    // 🔥 Adiciona exceção para a rota de Avaliação Externa que tem parâmetros ID no query string 🔥
+    if (path === '#/avaliacao-externa') {
+      const { renderAvaliacaoExterna } = await import('./pages/avaliacao-externa.js');
+      await renderAvaliacaoExterna(root, hash);
+      root.setAttribute('aria-busy', 'false');
+      return;
+    }
 
     if (drawViewMatch) {
       const { renderCompetitionClassDrawView } = await import('./pages/competition-class-draw-view.js');

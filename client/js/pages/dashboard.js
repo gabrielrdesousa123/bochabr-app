@@ -131,7 +131,7 @@ export async function renderDashboard(root) {
       `;
     }
 
-    // 4. ADMINISTRAÇÃO (+ Gerenciar Dispensas + LOGS)
+    // 4. ADMINISTRAÇÃO (+ Gerenciar Dispensas + LOGS + API WORLD BOCCIA)
     if (canViewPage('gestao') || canViewPage('admin_dispensas')) {
       html += `
         <div class="row">
@@ -139,6 +139,7 @@ export async function renderDashboard(root) {
           <div class="cards">
             ${canViewPage('gestao') ? card('#/admin/users', icons.admin, 'Gestão de Acessos', 'Aprovar Oficiais e definir funções') : ''}
             ${canViewPage('gestao') ? card('#/system-logs', icons.admin, 'Logs do Sistema', 'Auditoria e Rastreio (TXT)') : ''}
+            ${canViewPage('gestao') ? card('#/bcms-test', icons.simulador, 'Lab API World Boccia', 'Integração Direta (BCMS)', false) : ''}
             ${canViewPage('admin_dispensas') ? card('#/admin/dispensas', icons.dispensaAdmin, 'Gerenciar Dispensas', 'Aprovar e emitir PDFs', false, 'dash-badge-dispensas') : ''}
           </div>
         </div>
@@ -159,7 +160,7 @@ export async function renderDashboard(root) {
 
     root.querySelector('h1')?.focus?.();
 
-    // 🔥 LISTENER EM TEMPO REAL PARA A NOTIFICAÇÃO NO CARD DO DASHBOARD
+    // LISTENER EM TEMPO REAL PARA A NOTIFICAÇÃO NO CARD DO DASHBOARD
     if (canViewPage('admin_dispensas')) {
         const dispensasRef = collection(db, "exemption_requests");
         const q = query(dispensasRef, where("status", "==", "PENDING"));

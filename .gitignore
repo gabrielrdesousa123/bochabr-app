@@ -15,7 +15,7 @@ Resultados PDF/
 # Bancos de dados locais (Opcional, evita conflitos de alterações)
 app.sqlite
 app.sqbpro
-
+bcms-test.js
 # Arquivos do sistema (Mac/Windows)
 .DS_Store
 Thumbs.db 

@@ -56,8 +56,8 @@ export async function renderLiveScoresheet(root) {
         hasControlPermission: operSession && String(operSession.compId) === String(compId),
         isAdmin: false,
         competition: {}, logos: [], match: {}, allAthletes: [], allTeams: [], allClubs: [],
-        p1: { id: null, name: 'A Definir', displayName: '', bib: '-', club: '', clubFull: '', rampa: '', totalScore: 0, tbScore: 0, seconds: 300, ballsCount: 0, balls: Array(6).fill(false), violations: [], yellowCards: 0, redCards: 0, penalties: [], logoUrl: null },
-        p2: { id: null, name: 'A Definir', displayName: '', bib: '-', club: '', clubFull: '', rampa: '', totalScore: 0, tbScore: 0, seconds: 300, ballsCount: 0, balls: Array(6).fill(false), violations: [], yellowCards: 0, redCards: 0, penalties: [], logoUrl: null },
+        p1: { id: null, name: 'A Definir', displayName: '', bib: '-', club: '', clubFull: '', rampa: '', rampaShort: '', totalScore: 0, tbScore: 0, seconds: 300, ballsCount: 0, balls: Array(6).fill(false), violations: [], yellowCards: 0, redCards: 0, penalties: [], logoUrl: null },
+        p2: { id: null, name: 'A Definir', displayName: '', bib: '-', club: '', clubFull: '', rampa: '', rampaShort: '', totalScore: 0, tbScore: 0, seconds: 300, ballsCount: 0, balls: Array(6).fill(false), violations: [], yellowCards: 0, redCards: 0, penalties: [], logoUrl: null },
         partials: [], ballHistory: [], currentEnd: 1, maxEnds: 4, initialTime: 300, activeTimer: null, showReport: false, isStarted: false, globalTimer: { active: false, paused: false, seconds: 0, label: '', interval: null }
     };
 
@@ -98,7 +98,6 @@ export async function renderLiveScoresheet(root) {
     const formatTime = sec => { if (sec < 0) sec = 0; return `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`; };
     const parseTimeString = (timeStr, defaultSec = 300) => { if (!timeStr) return defaultSec; const str = String(timeStr); if (str.includes(':')) { const p = str.split(':').map(Number); return (p[0] * 60) + (p[1] || 0); } const val = Number(str); return isNaN(val) ? defaultSec : (val > 60 ? val : val * 60); };
 
-    // 🔥 FUNÇÃO RESTAURADA: Calcula o tamanho da fonte baseado no tamanho do nome
     const getDynamicFontSizeTablet = (text) => {
         if (!text) return '26px';
         const len = text.length;
@@ -108,6 +107,35 @@ export async function renderLiveScoresheet(root) {
         return '26px';
     };
 
+    // 🔥 NOVA FUNÇÃO INTELIGENTE DE ABREVIAÇÃO DE NOMES 🔥
+    function formatShortName(fullName) {
+        if (!fullName) return '';
+        const parts = fullName.trim().split(/\s+/);
+        if (parts.length <= 1) return fullName;
+
+        const suffixes = ['junior', 'júnior', 'filho', 'neto', 'sobrinho'];
+        const prepositions = ['da', 'de', 'do', 'das', 'dos'];
+
+        let first = parts[0];
+        let last = parts[parts.length - 1];
+        let suffix = '';
+
+        // Se o último nome for um sufixo, guarda o sufixo e pega o nome antes dele
+        if (suffixes.includes(last.toLowerCase()) && parts.length > 2) {
+            suffix = ' ' + last;
+            parts.pop(); // Remove o sufixo da lista temporariamente
+            last = parts[parts.length - 1];
+        }
+
+        // Verifica se a palavra anterior ao último nome é uma preposição
+        let prep = '';
+        if (parts.length > 2 && prepositions.includes(parts[parts.length - 2].toLowerCase())) {
+            prep = parts[parts.length - 2] + ' ';
+        }
+
+        return `${first} ${prep}${last}${suffix}`;
+    }
+
     function processParticipant(m, side) {
         let athId = side === 1 ? (m.entrant1_athlete_id || m.entrant1_id || m.entrant_a_id) : (m.entrant2_athlete_id || m.entrant2_id || m.entrant_b_id);
         let rawName = side === 1 ? (m.p1_name || m.entrant1_name || m.entrant_a_name) : (m.p2_name || m.entrant2_name || m.entrant_b_name);
@@ -115,28 +143,43 @@ export async function renderLiveScoresheet(root) {
         let club = side === 1 ? (m.p1_club_sigla || m.p1_club_nome || m.p1_club || m.entrant1_club_sigla || m.entrant_a_club_sigla) : (m.p2_club_sigla || m.p2_club_nome || m.p2_club || m.entrant2_club_sigla || m.entrant_b_club_sigla);
         let logo = side === 1 ? (m.p1_logo || m.entrant1_logo) : (m.p2_logo || m.entrant2_logo); 
 
-        let finalName = cleanName(rawName); let displayName = escapeHTML(finalName); let isTeam = false; let rampa = ''; let clubIdFallback = null;
-        const formatShort = (fullName) => { if (!fullName) return ''; const parts = fullName.trim().split(/\s+/); return parts.length <= 1 ? fullName : `${parts[0]} ${parts[parts.length - 1]}`; };
+        let finalName = cleanName(rawName); let displayName = ''; let isTeam = false; let rampa = ''; let clubIdFallback = null;
 
         if (athId && state.allTeams && state.allTeams.length > 0) {
             const teamObj = state.allTeams.find(t => String(t.id) === String(athId));
             if (teamObj && teamObj.athletes) {
                 isTeam = true; clubIdFallback = teamObj.rep_value || teamObj.clube_id || null;
-                displayName = teamObj.athletes.map(aId => { const aObj = state.allAthletes.find(a => String(a.id) === String(aId)); return aObj ? escapeHTML(formatShort(aObj.nome)) : 'Desconhecido'; }).join('<br>');
+                displayName = teamObj.athletes.map(aId => { 
+                    const aObj = state.allAthletes.find(a => String(a.id) === String(aId)); 
+                    return aObj ? escapeHTML(formatShortName(aObj.nome)) : 'Desconhecido'; 
+                }).join('<br>');
                 finalName = teamObj.nome || teamObj.name || finalName; club = teamObj.sigla || teamObj.club_sigla || club;
             }
         }
 
         if (!isTeam) {
-            displayName = escapeHTML(formatShort(finalName));
+            displayName = escapeHTML(formatShortName(finalName));
             if (athId && state.allAthletes && state.allAthletes.length > 0) {
                 const athObj = state.allAthletes.find(a => String(a.id) === String(athId));
-                if (athObj) { clubIdFallback = athObj.clube_id || (athObj.clubes_ids && athObj.clubes_ids[0]) || null; if (athObj.operador_rampa) rampa = athObj.operador_rampa; }
+                if (athObj) { 
+                    clubIdFallback = athObj.clube_id || (athObj.clubes_ids && athObj.clubes_ids[0]) || null; 
+                    if (athObj.operador_rampa) rampa = athObj.operador_rampa; 
+                }
             }
         }
         if (!logo && clubIdFallback && state.allClubs && state.allClubs.length > 0) { const cObj = state.allClubs.find(c => String(c.id) === String(clubIdFallback)); if (cObj && cObj.logo_url) logo = cObj.logo_url; }
 
-        return { id: athId, name: finalName, displayName: displayName, bib: bib || '-', club: club, clubFull: club, rampa: rampa, logoUrl: logo };
+        return { 
+            id: athId, 
+            name: finalName, 
+            displayName: displayName, 
+            bib: bib || '-', 
+            club: club, 
+            clubFull: club, 
+            rampa: rampa, 
+            rampaShort: formatShortName(rampa), // 🔥 CALHEIRO ABREVIADO INTELIGENTEMENTE
+            logoUrl: logo 
+        };
     }
 
     async function loadData() {
@@ -198,9 +241,9 @@ export async function renderLiveScoresheet(root) {
                 state.maxEnds = cDef.ends || 4; state.initialTime = parseTimeString(cDef.turn_time || cDef.tempos || cDef.tempo_end || 5, 300);
 
                 const dataP1 = processParticipant(state.match, 1);
-                state.p1.id = dataP1.id; state.p1.name = dataP1.name; state.p1.displayName = dataP1.displayName; state.p1.bib = dataP1.bib; state.p1.club = dataP1.club; state.p1.clubFull = dataP1.clubFull; state.p1.rampa = dataP1.rampa; state.p1.logoUrl = dataP1.logoUrl;
+                state.p1.id = dataP1.id; state.p1.name = dataP1.name; state.p1.displayName = dataP1.displayName; state.p1.bib = dataP1.bib; state.p1.club = dataP1.club; state.p1.clubFull = dataP1.clubFull; state.p1.rampa = dataP1.rampa; state.p1.rampaShort = dataP1.rampaShort; state.p1.logoUrl = dataP1.logoUrl;
                 const dataP2 = processParticipant(state.match, 2);
-                state.p2.id = dataP2.id; state.p2.name = dataP2.name; state.p2.displayName = dataP2.displayName; state.p2.bib = dataP2.bib; state.p2.club = dataP2.club; state.p2.clubFull = dataP2.clubFull; state.p2.rampa = dataP2.rampa; state.p2.logoUrl = dataP2.logoUrl;
+                state.p2.id = dataP2.id; state.p2.name = dataP2.name; state.p2.displayName = dataP2.displayName; state.p2.bib = dataP2.bib; state.p2.club = dataP2.club; state.p2.clubFull = dataP2.clubFull; state.p2.rampa = dataP2.rampa; state.p2.rampaShort = dataP2.rampaShort; state.p2.logoUrl = dataP2.logoUrl;
 
                 let details = {}; try { if (state.match.details || state.match.match_details) details = typeof(state.match.details) === 'object' ? state.match.details : JSON.parse(state.match.details || state.match.match_details); } catch(e){}
 
@@ -253,8 +296,8 @@ export async function renderLiveScoresheet(root) {
             payload: {
                 compName: state.competition.nome || state.competition.name || 'Competição',
                 matchInfo: `${state.match.class_code} • Quadra ${state.match.court || '-'} • Jogo ${state.match.match_number || '-'}`,
-                p1Name: state.p1.name, p1FullName: state.p1.name, p1DisplayName: state.p1.displayName, p1Bib: state.p1.bib, p1Club: state.p1.club, p1ClubFull: state.p1.clubFull, p1Rampa: state.p1.rampa, p1LogoUrl: state.p1.logoUrl, p1Score: state.p1.totalScore, p1TbScore: state.p1.tbScore, p1Time: formatTime(state.p1.seconds), p1BallsCount: state.p1.ballsCount, p1Violations: state.p1.violations, p1Penalties: state.p1.penalties,
-                p2Name: state.p2.name, p2FullName: state.p2.name, p2DisplayName: state.p2.displayName, p2Bib: state.p2.bib, p2Club: state.p2.club, p2ClubFull: state.p2.clubFull, p2Rampa: state.p2.rampa, p2LogoUrl: state.p2.logoUrl, p2Score: state.p2.totalScore, p2TbScore: state.p2.tbScore, p2Time: formatTime(state.p2.seconds), p2BallsCount: state.p2.ballsCount, p2Violations: state.p2.violations, p2Penalties: state.p2.penalties,
+                p1Name: state.p1.name, p1FullName: state.p1.name, p1DisplayName: state.p1.displayName, p1Bib: state.p1.bib, p1Club: state.p1.club, p1ClubFull: state.p1.clubFull, p1Rampa: state.p1.rampaShort, p1LogoUrl: state.p1.logoUrl, p1Score: state.p1.totalScore, p1TbScore: state.p1.tbScore, p1Time: formatTime(state.p1.seconds), p1BallsCount: state.p1.ballsCount, p1Violations: state.p1.violations, p1Penalties: state.p1.penalties,
+                p2Name: state.p2.name, p2FullName: state.p2.name, p2DisplayName: state.p2.displayName, p2Bib: state.p2.bib, p2Club: state.p2.club, p2ClubFull: state.p2.clubFull, p2Rampa: state.p2.rampaShort, p2LogoUrl: state.p2.logoUrl, p2Score: state.p2.totalScore, p2TbScore: state.p2.tbScore, p2Time: formatTime(state.p2.seconds), p2BallsCount: state.p2.ballsCount, p2Violations: state.p2.violations, p2Penalties: state.p2.penalties,
                 currentEnd: state.currentEnd > state.maxEnds ? (state.currentEnd === state.maxEnds + 1 ? '1º Tie-Break' : '2º Tie-Break') : `${state.currentEnd}º Parcial`,
                 partials: state.partials, activeTimer: state.activeTimer, ballHistory: state.ballHistory, 
                 globalTimer: state.globalTimer.active ? { label: state.globalTimer.label, time: formatTime(state.globalTimer.seconds) } : null,
@@ -430,8 +473,9 @@ export async function renderLiveScoresheet(root) {
         let p2C = '🟨'.repeat(state.p2.yellowCards) + '🟥'.repeat(state.p2.redCards); if(p2C) p2C = `<span style="font-size:0.6em; margin-right:0.5vw; vertical-align: middle;">${p2C}</span>`;
         document.getElementById('p2-name-display').style.fontSize = getDynamicFontSizeTablet(p2NameHtml); document.getElementById('p2-name-display').innerHTML = `${p2C}${p2NameHtml}`;
         
-        document.getElementById('p1-club-display').innerHTML = `${escapeHTML(state.p1.clubFull || '-')} ${state.p1.rampa ? `<br><span style="color:#fca5a5; font-weight:normal; font-size:12px;">Op: ${escapeHTML(state.p1.rampa)}</span>` : ''}`;
-        document.getElementById('p2-club-display').innerHTML = `${escapeHTML(state.p2.clubFull || '-')} ${state.p2.rampa ? `<br><span style="color:#93c5fd; font-weight:normal; font-size:12px;">Op: ${escapeHTML(state.p2.rampa)}</span>` : ''}`;
+        // 🔥 INJETANDO O NOME ABREVIADO DO CALHEIRO NA MESA DO TABLET 🔥
+        document.getElementById('p1-club-display').innerHTML = `${escapeHTML(state.p1.clubFull || '-')} ${state.p1.rampaShort ? `<br><span style="color:#fca5a5; font-weight:normal; font-size:12px;">Op: ${escapeHTML(state.p1.rampaShort)}</span>` : ''}`;
+        document.getElementById('p2-club-display').innerHTML = `${escapeHTML(state.p2.clubFull || '-')} ${state.p2.rampaShort ? `<br><span style="color:#93c5fd; font-weight:normal; font-size:12px;">Op: ${escapeHTML(state.p2.rampaShort)}</span>` : ''}`;
         
         document.getElementById('p1-balls').innerHTML = Array.from({length: state.p1.ballsCount}).map((_, i) => `<div class="boccia-ball red-ball ${state.p1.balls[i] ? 'played' : ''}" data-side="p1" data-idx="${i}"></div>`).join('');
         document.getElementById('p2-balls').innerHTML = Array.from({length: state.p2.ballsCount}).map((_, i) => `<div class="boccia-ball blue-ball ${state.p2.balls[i] ? 'played' : ''}" data-side="p2" data-idx="${i}"></div>`).join('');

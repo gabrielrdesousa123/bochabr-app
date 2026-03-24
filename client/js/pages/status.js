@@ -70,6 +70,21 @@ export async function renderStatus(root) {
             
             @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
             .loading-text { animation: pulse 1.5s infinite; color: #3b82f6; font-weight: bold; }
+
+            /* Estilos da Seção Firebase Limites */
+            .grid-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 30px; }
+            .limit-card { background: white; border: 1px solid #cbd5e1; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+            .limit-card h3 { margin: 0 0 15px 0; color: #1e293b; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+            .limit-card .limit-item { margin-bottom: 15px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; }
+            .limit-card .limit-item:last-child { margin-bottom: 0; border-bottom: none; padding-bottom: 0; }
+            .limit-card .limit-title { font-weight: bold; color: #475569; font-size: 13px; text-transform: uppercase; }
+            .limit-card .limit-value { font-size: 24px; font-weight: 900; color: #2563eb; margin: 5px 0; }
+            .limit-card .limit-desc { font-size: 12px; color: #64748b; line-height: 1.4; }
+            .alert-box { background: #fffbeb; border: 1px solid #fde68a; padding: 15px; border-radius: 8px; margin-bottom: 20px; display: flex; gap: 15px; align-items: flex-start; }
+            .alert-box.info { background: #eff6ff; border-color: #bfdbfe; }
+            .alert-box p { margin: 0 0 5px 0; font-size: 13px; color: #334155; line-height: 1.5; }
+            .btn-firebase { background: #f59e0b; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; text-decoration: none; display: inline-block; transition: 0.2s; }
+            .btn-firebase:hover { background: #d97706; }
         </style>
     `;
 
@@ -140,6 +155,50 @@ export async function renderStatus(root) {
                     <button class="btn-test" id="btn-run-test">▶ Iniciar Teste de Conexão</button>
                 </div>
 
+                <h2 class="guide-section-title" style="border-top: 2px dashed #cbd5e1; padding-top: 40px;">☁️ Limites do Servidor (Firebase Spark)</h2>
+                
+                <div class="alert-box info">
+                    <div style="font-size: 24px;">ℹ️</div>
+                    <div>
+                        <p><strong>Monitorização do Plano Gratuito</strong></p>
+                        <p>O Firebase não permite que o site consulte os dados de consumo em tempo real por motivos de segurança. Para ver os gráficos reais de hoje, acesse o painel oficial da Google clicando no botão abaixo.</p>
+                    </div>
+                </div>
+
+                <div class="grid-cards">
+                    <div class="limit-card" style="border-top: 4px solid #3b82f6;">
+                        <h3>📖 Leituras Diárias</h3>
+                        <div class="limit-item">
+                            <div class="limit-title">Limite Gratuito</div>
+                            <div class="limit-value">50.000</div>
+                            <div class="limit-desc">Consumido ao carregar listas de atletas ou abrir tabelas de jogos. <strong>Atenção:</strong> Evite que o público recarregue a página de chaves repetidamente.</div>
+                        </div>
+                    </div>
+
+                    <div class="limit-card" style="border-top: 4px solid #10b981;">
+                        <h3>📝 Escritas Diárias</h3>
+                        <div class="limit-item">
+                            <div class="limit-title">Limite Gratuito</div>
+                            <div class="limit-value">20.000</div>
+                            <div class="limit-desc">Consumido ao salvar placares, cadastrar atletas ou atualizar checagens de equipamentos. Raramente atingirá o limite.</div>
+                        </div>
+                    </div>
+
+                    <div class="limit-card" style="border-top: 4px solid #f59e0b;">
+                        <h3>💾 Armazenamento</h3>
+                        <div class="limit-item">
+                            <div class="limit-title">Espaço Total na Base</div>
+                            <div class="limit-value">1 GB</div>
+                            <div class="limit-desc">Suficiente para milhões de registros de texto (atletas, competições, súmulas).</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="text-align: center; margin-bottom: 50px;">
+                    <a href="https://console.firebase.google.com/" target="_blank" class="btn-firebase">
+                        🔥 Abrir Firebase Console
+                    </a>
+                </div>
                 <h2 class="guide-section-title">🌍 Acessos Globais (Sistema)</h2>
                 <div class="roles-grid">
                     <div class="role-card role-public">
@@ -197,7 +256,6 @@ export async function renderStatus(root) {
 
     const auth = getAuth();
 
-    // 1. Verificar Internet Básica
     const checkInternet = () => {
         const netEl = document.getElementById('val-net');
         if (navigator.onLine) {
@@ -209,7 +267,6 @@ export async function renderStatus(root) {
     window.addEventListener('online', checkInternet);
     window.addEventListener('offline', checkInternet);
 
-    // 2. Carregar Dados do Firebase
     onAuthStateChanged(auth, async (user) => {
         if (!user) {
             root.innerHTML = `<div style="padding:40px; text-align:center; color: #ef4444; font-weight:bold;">Acesso Negado. Faça login para ver o diagnóstico.</div>`;
@@ -217,7 +274,6 @@ export async function renderStatus(root) {
         }
 
         try {
-            // Puxa os dados do usuário
             const userDoc = await getDoc(doc(db, "users", user.uid));
             if (userDoc.exists()) {
                 const uData = userDoc.data();
@@ -232,7 +288,6 @@ export async function renderStatus(root) {
                 document.getElementById('val-role').innerText = roleFormatado;
             }
 
-            // Puxa as estatísticas gerais
             const compsSnap = await getDocs(collection(db, "competitions"));
             document.getElementById('val-comps').innerText = compsSnap.size;
 
@@ -241,7 +296,6 @@ export async function renderStatus(root) {
 
             document.getElementById('val-db').innerHTML = '<span class="badge-ok">Conectado (Latência Baixa)</span>';
 
-            // Esconde o loading e mostra o painel
             document.getElementById('loading-overlay').style.display = 'none';
             document.getElementById('dashboard-content').style.display = 'block';
             checkInternet();
@@ -253,7 +307,6 @@ export async function renderStatus(root) {
         }
     });
 
-    // 3. Lógica do Teste de Velocidade (Ping e Download manual)
     const btnTest = document.getElementById('btn-run-test');
     btnTest.addEventListener('click', async () => {
         btnTest.disabled = true;
@@ -268,21 +321,17 @@ export async function renderStatus(root) {
         upEl.innerText = "...";
 
         try {
-            // Teste de Ping batendo na raiz do próprio site (nunca falha por CORS)
             const originUrl = window.location.origin + window.location.pathname;
             const startPing = Date.now();
             await fetch(originUrl + '?_ping=' + startPing, { method: 'HEAD', cache: 'no-store' });
             const pingReal = Date.now() - startPing;
             
-            // Teste de Download (Baixa o código da página atual para medir a banda)
             let downMbps = 0;
             const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
             
-            // Se o navegador suportar a API nativa (Chrome/Android), usamos ela que é super precisa
             if (conn && conn.downlink) {
                 downMbps = conn.downlink;
             } else {
-                // Se for Safari/iPhone/Firefox, fazemos o teste de download "na força"
                 const startDl = Date.now();
                 const res = await fetch(originUrl + '?_dl=' + startDl, { cache: 'no-store' });
                 const blob = await res.blob();
@@ -290,9 +339,9 @@ export async function renderStatus(root) {
                 
                 const durationInSeconds = (endDl - startDl) / 1000;
                 const bitsLoaded = blob.size * 8;
-                downMbps = (bitsLoaded / durationInSeconds) / (1024 * 1024); // Mbps
+                downMbps = (bitsLoaded / durationInSeconds) / (1024 * 1024);
                 
-                if (downMbps < 0.1) downMbps = 0.5; // fallback de segurança
+                if (downMbps < 0.1) downMbps = 0.5; 
             }
 
             setTimeout(() => {
@@ -303,7 +352,6 @@ export async function renderStatus(root) {
                 downEl.innerText = downFmtd;
                 downEl.style.color = downMbps > 5 ? '#16a34a' : (downMbps > 1 ? '#f59e0b' : '#ef4444');
 
-                // A rede móvel padrão do Brasil tem um upload que é cerca de 30% do download
                 const estimatedUp = (downMbps * 0.3).toFixed(1);
                 upEl.innerText = estimatedUp > 0 ? estimatedUp : '0.1';
 

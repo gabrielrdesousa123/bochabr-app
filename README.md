@@ -153,3 +153,6 @@ Then, open in your browser: \`http://localhost:8000\`
  
 > - **Atualizado: 19/03/2026 as 17:50** 
 >   - Alteração de simulador de competição, dashboard inserida log, pagina de devolução de bolas 
+ 
+> - **Atualizado: 24/03/2026 as 11:29** 
+>   - Alterações: Criação da avalição dos arbitros / Inclusão operador de Rampa / CSV BCMS atualizado 
