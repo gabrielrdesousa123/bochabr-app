@@ -156,3 +156,6 @@ Then, open in your browser: \`http://localhost:8000\`
  
 > - **Atualizado: 24/03/2026 as 11:29** 
 >   - Alterações: Criação da avalição dos arbitros / Inclusão operador de Rampa / CSV BCMS atualizado 
+ 
+> - **Atualizado: 24/03/2026 as 11:35** 
+>   - Criação da avalição dos arbitros / Inclusão operador de Rampa / CSV BCMS atualizado 
